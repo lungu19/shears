@@ -1,0 +1,8 @@
+# Mac stuff:
+.DS_Store
+
+# Rust compile target directories:
+target
+
+# https://github.com/lycheeverse/lychee
+.lycheecache
