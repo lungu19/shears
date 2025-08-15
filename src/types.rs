@@ -5,17 +5,12 @@ use std::path::PathBuf;
 pub struct ShearsUiState {
     pub page: ShearsPage,
 
-    pub checkbox_textures_low: bool,
-    pub checkbox_textures_medium: bool,
-    pub checkbox_textures_high: bool,
-    pub checkbox_textures_very_high: bool,
-    pub checkbox_textures_ultra: bool,
-
+    pub checkbox_textures: [bool; ForgeTextureQualityLevel::COUNT],
     pub checkbox_videos: bool,
 
-    pub modal_about: bool,
-
     pub label_possible_space_saved: u64,
+
+    pub modals: [bool; ShearsModals::COUNT],
 }
 
 impl Default for ShearsUiState {
@@ -23,17 +18,11 @@ impl Default for ShearsUiState {
         Self {
             page: ShearsPage::SelectFolder,
 
-            checkbox_textures_low: true,
-            checkbox_textures_medium: true,
-            checkbox_textures_high: true,
-            checkbox_textures_very_high: true,
-            checkbox_textures_ultra: true,
-
+            checkbox_textures: [true; ForgeTextureQualityLevel::COUNT],
             checkbox_videos: true,
 
-            modal_about: false,
-
             label_possible_space_saved: 0,
+            modals: [false; ShearsModals::COUNT],
         }
     }
 }
@@ -48,11 +37,7 @@ pub struct ShearsFolderState {
 pub struct ShearingFeaturesAvailability {
     pub has_forge_files: bool,
 
-    pub textures_low: (bool, u64),
-    pub textures_medium: (bool, u64),
-    pub textures_high: (bool, u64),
-    pub textures_very_high: (bool, u64),
-    pub textures_ultra: (bool, u64),
+    pub textures: [(bool, u64); ForgeTextureQualityLevel::COUNT],
     pub videos: (bool, u64),
 }
 
@@ -92,6 +77,8 @@ impl std::fmt::Display for ForgeTextureQualityLevel {
 }
 
 impl ForgeTextureQualityLevel {
+    pub const COUNT: usize = 5;
+
     pub fn convert_from_i32(texture_level: i32) -> Option<Self> {
         match texture_level {
             0 => Some(Self::Low),
@@ -118,4 +105,13 @@ impl ForgeTextureQualityLevel {
 pub enum ShearsPage {
     SelectFolder = 0,
     FolderSelected,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ShearsModals {
+    About = 0,
+}
+
+impl ShearsModals {
+    const COUNT: usize = 1;
 }

@@ -2,7 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hides console window on Windows in release
 
 fn main() {
+    #[cfg(not(debug_assertions))]
     run_shears_version_check_thread();
+
     if let Err(e) = shears_main() {
         win_msgbox::error::<win_msgbox::Okay>(&e.to_string())
             .show()
@@ -37,7 +39,7 @@ pub fn run_shears_version_check_thread() {
         let response = minreq::get("http://api.github.com/repos/lungu19/shears/releases/latest")
             .with_header("User-Agent", "shears-update-check")
             .send()
-            .expect("Failed");
+            .expect("Failed to send rquest");
 
         if let Ok(raw_json) = &response.as_str() {
             let json = microjson::JSONValue::load(raw_json);

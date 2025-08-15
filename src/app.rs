@@ -7,7 +7,7 @@ use crate::{
         delete_texture_files, delete_videos_folder, get_shearing_features_availability,
         windows_confirmation_dialog, write_streaminginstall,
     },
-    types::{ForgeTextureQualityLevel, ShearsFolderState, ShearsPage, ShearsUiState},
+    types::{ForgeTextureQualityLevel, ShearsFolderState, ShearsModals, ShearsPage, ShearsUiState},
 };
 
 #[derive(Default)]
@@ -35,18 +35,19 @@ impl ShearsApp {
             .expect("Failed to get folder_state.siege_path");
         self.folder_state.features_availability = get_shearing_features_availability(siege_path);
 
-        // set the feature checkboxes accordingly
         self.ui_state.page = ShearsPage::FolderSelected;
-        self.ui_state.checkbox_textures_low =
-            self.folder_state.features_availability.textures_low.0;
-        self.ui_state.checkbox_textures_medium =
-            self.folder_state.features_availability.textures_medium.0;
-        self.ui_state.checkbox_textures_high =
-            self.folder_state.features_availability.textures_high.0;
-        self.ui_state.checkbox_textures_very_high =
-            self.folder_state.features_availability.textures_very_high.0;
-        self.ui_state.checkbox_textures_ultra =
-            self.folder_state.features_availability.textures_ultra.0;
+
+        // set the feature checkboxes accordingly
+        for quality_level in
+            ForgeTextureQualityLevel::Low as usize..=ForgeTextureQualityLevel::Ultra as usize
+        {
+            self.ui_state.checkbox_textures[quality_level] =
+                self.folder_state.features_availability.textures[quality_level].0;
+        }
+
+        self.folder_state.features_availability.textures[ForgeTextureQualityLevel::Low as usize]
+            .0 = false; // let's avoid users making their games completely unplayable
+
         self.ui_state.checkbox_videos = self.folder_state.features_availability.videos.0;
 
         self.compute_possible_space_freed();
@@ -55,22 +56,16 @@ impl ShearsApp {
     fn compute_possible_space_freed(&mut self) {
         self.ui_state.label_possible_space_saved = 0;
 
-        if !self.ui_state.checkbox_textures_medium {
-            self.ui_state.label_possible_space_saved +=
-                self.folder_state.features_availability.textures_medium.1;
+        for i in
+            ForgeTextureQualityLevel::Medium as usize..=ForgeTextureQualityLevel::Ultra as usize
+        // the user is not able to remove low textures so we can just skip it here
+        {
+            if !self.ui_state.checkbox_textures[i] {
+                self.ui_state.label_possible_space_saved +=
+                    self.folder_state.features_availability.textures[i].1;
+            }
         }
-        if !self.ui_state.checkbox_textures_high {
-            self.ui_state.label_possible_space_saved +=
-                self.folder_state.features_availability.textures_high.1;
-        }
-        if !self.ui_state.checkbox_textures_very_high {
-            self.ui_state.label_possible_space_saved +=
-                self.folder_state.features_availability.textures_very_high.1;
-        }
-        if !self.ui_state.checkbox_textures_ultra {
-            self.ui_state.label_possible_space_saved +=
-                self.folder_state.features_availability.textures_ultra.1;
-        }
+
         if !self.ui_state.checkbox_videos {
             self.ui_state.label_possible_space_saved +=
                 self.folder_state.features_availability.videos.1;
@@ -78,17 +73,18 @@ impl ShearsApp {
     }
 
     fn execute_shearing(&mut self) {
-        let min_texture_quality_level = if self.ui_state.checkbox_textures_medium {
-            ForgeTextureQualityLevel::Medium
-        } else if self.ui_state.checkbox_textures_high {
-            ForgeTextureQualityLevel::High
-        } else if self.ui_state.checkbox_textures_very_high {
-            ForgeTextureQualityLevel::VeryHigh
-        } else if self.ui_state.checkbox_textures_ultra {
-            ForgeTextureQualityLevel::Ultra
-        } else {
-            ForgeTextureQualityLevel::Low
-        };
+        let mut min_texture_quality_level = ForgeTextureQualityLevel::Low;
+        for i in (ForgeTextureQualityLevel::Medium.convert_to_i32()
+            ..=ForgeTextureQualityLevel::Ultra.convert_to_i32())
+            .rev()
+        {
+            let level = ForgeTextureQualityLevel::convert_from_i32(i)
+                .expect("Failed to convert i32 to ForgeTextureQualityLevel");
+            if self.ui_state.checkbox_textures[level as usize] {
+                min_texture_quality_level = level;
+                break;
+            }
+        }
 
         if let Some(path_str) = self.folder_state.siege_path.clone() {
             let path = std::path::Path::new(&path_str);
@@ -118,7 +114,7 @@ impl ShearsApp {
 
                 ui.menu_button("Help", |ui| {
                     if ui.button("About").clicked() {
-                        self.ui_state.modal_about = true;
+                        self.ui_state.modals[ShearsModals::About as usize] = true;
                     }
                 });
 
@@ -183,135 +179,26 @@ impl ShearsApp {
     }
 
     fn validate_ui_state_checkbox(&mut self, level: ForgeTextureQualityLevel) {
-        match level {
-            ForgeTextureQualityLevel::Low => {}
-            ForgeTextureQualityLevel::Medium => {
-                self.ui_state.checkbox_textures_high = false;
-                self.ui_state.checkbox_textures_very_high = false;
-                self.ui_state.checkbox_textures_ultra = false;
-            }
-            ForgeTextureQualityLevel::High => {
-                if self.ui_state.checkbox_textures_high {
-                    self.ui_state.checkbox_textures_medium = true;
-                }
-                self.ui_state.checkbox_textures_very_high = false;
-                self.ui_state.checkbox_textures_ultra = false;
-            }
-            ForgeTextureQualityLevel::VeryHigh => {
-                if self.ui_state.checkbox_textures_very_high {
-                    self.ui_state.checkbox_textures_medium = true;
-                    self.ui_state.checkbox_textures_high = true;
-                }
-                self.ui_state.checkbox_textures_ultra = false;
-            }
-            ForgeTextureQualityLevel::Ultra => {
-                if self.ui_state.checkbox_textures_ultra {
-                    self.ui_state.checkbox_textures_medium = true;
-                    self.ui_state.checkbox_textures_high = true;
-                    self.ui_state.checkbox_textures_very_high = true;
-                }
-            }
+        if level == ForgeTextureQualityLevel::Low {
+            // this function will never be called with the low textures option
+            self.compute_possible_space_freed();
+            return;
         }
+
+        let level_idx = level as usize;
+        let checkboxes = &mut self.ui_state.checkbox_textures;
+
+        let ultra_idx = ForgeTextureQualityLevel::Ultra as usize;
+        if level_idx < ultra_idx {
+            checkboxes[(level_idx + 1)..=ultra_idx].fill(false);
+        }
+
+        if checkboxes[level_idx] {
+            let medium_idx = ForgeTextureQualityLevel::Medium as usize;
+            checkboxes[medium_idx..level_idx].fill(true);
+        }
+
         self.compute_possible_space_freed();
-    }
-
-    fn render_folder_selected_texture_features(&mut self, ui: &mut egui::Ui) {
-        ui.add_enabled_ui(false, |ui| {
-            ui.checkbox(
-                &mut self.ui_state.checkbox_textures_low,
-                format!(
-                    "Low Textures ({})",
-                    humansize::format_size(
-                        self.folder_state.features_availability.textures_low.1,
-                        humansize::WINDOWS
-                    )
-                ),
-            );
-        });
-
-        ui.add_enabled_ui(
-            self.folder_state.features_availability.textures_medium.0,
-            |ui| {
-                if ui
-                    .checkbox(
-                        &mut self.ui_state.checkbox_textures_medium,
-                        format!(
-                            "Medium Textures ({})",
-                            humansize::format_size(
-                                self.folder_state.features_availability.textures_medium.1,
-                                humansize::WINDOWS
-                            )
-                        ),
-                    )
-                    .clicked()
-                {
-                    self.validate_ui_state_checkbox(ForgeTextureQualityLevel::Medium);
-                }
-            },
-        );
-
-        ui.add_enabled_ui(
-            self.folder_state.features_availability.textures_high.0,
-            |ui| {
-                if ui
-                    .checkbox(
-                        &mut self.ui_state.checkbox_textures_high,
-                        format!(
-                            "High Textures ({})",
-                            humansize::format_size(
-                                self.folder_state.features_availability.textures_high.1,
-                                humansize::WINDOWS
-                            )
-                        ),
-                    )
-                    .clicked()
-                {
-                    self.validate_ui_state_checkbox(ForgeTextureQualityLevel::High);
-                }
-            },
-        );
-
-        ui.add_enabled_ui(
-            self.folder_state.features_availability.textures_very_high.0,
-            |ui| {
-                if ui
-                    .checkbox(
-                        &mut self.ui_state.checkbox_textures_very_high,
-                        format!(
-                            "Very High Textures ({})",
-                            humansize::format_size(
-                                self.folder_state.features_availability.textures_very_high.1,
-                                humansize::WINDOWS
-                            )
-                        ),
-                    )
-                    .clicked()
-                {
-                    self.validate_ui_state_checkbox(ForgeTextureQualityLevel::VeryHigh);
-                }
-            },
-        );
-
-        ui.add_enabled_ui(
-            self.folder_state.features_availability.textures_ultra.0,
-            |ui| {
-                if ui
-                    .checkbox(
-                        &mut self.ui_state.checkbox_textures_ultra,
-                        format!(
-                            "Ultra Textures ({})",
-                            humansize::format_size(
-                                self.folder_state.features_availability.textures_ultra.1,
-                                humansize::WINDOWS
-                            )
-                        ),
-                    )
-                    .clicked()
-                {
-                    self.validate_ui_state_checkbox(ForgeTextureQualityLevel::Ultra);
-                }
-            },
-        );
     }
 
     fn render_folder_selected_page_available_features(&mut self, ui: &mut egui::Ui) {
@@ -324,9 +211,43 @@ impl ShearsApp {
                 }
             });
             ui.label("Choose what you want to keep");
+
             ui.separator();
-            self.render_folder_selected_texture_features(ui);
+
+            for quality_level in
+                ForgeTextureQualityLevel::Low as usize..=ForgeTextureQualityLevel::Ultra as usize
+            {
+                let forge_texture_quality_level =
+                    ForgeTextureQualityLevel::convert_from_i32(quality_level as i32)
+                        .expect("Failed to convert i32 to ForgeTextureQualityLevel");
+
+                ui.add_enabled_ui(
+                    self.folder_state.features_availability.textures[quality_level].0,
+                    |ui| {
+                        if ui
+                            .checkbox(
+                                &mut self.ui_state.checkbox_textures[quality_level],
+                                format!(
+                                    "{} Textures ({})",
+                                    forge_texture_quality_level,
+                                    humansize::format_size(
+                                        self.folder_state.features_availability.textures
+                                            [quality_level]
+                                            .1,
+                                        humansize::WINDOWS
+                                    )
+                                ),
+                            )
+                            .clicked()
+                        {
+                            self.validate_ui_state_checkbox(forge_texture_quality_level);
+                        }
+                    },
+                );
+            }
+
             ui.separator();
+
             ui.add_enabled_ui(self.folder_state.features_availability.videos.0, |ui| {
                 ui.checkbox(
                     &mut self.ui_state.checkbox_videos,
@@ -376,14 +297,16 @@ impl ShearsApp {
     }
 
     fn render_modals(&mut self, ctx: &egui::Context) -> bool {
-        if self.ui_state.modal_about {
+        if self.ui_state.modals[ShearsModals::About as usize] {
             let modal = egui::Modal::new(egui::Id::new("ModalAbout")).show(ctx, |ui| {
-                ui.set_width(250.0);
+                ui.set_width(350.0);
 
                 ui.heading("Shears");
-
                 ui.vertical(|ui| {
-                    ui.label(format!("Version: {}", env!("CARGO_PKG_VERSION")));
+                    ui.label(format!("Version: {} ", env!("CARGO_PKG_VERSION")));
+                    ui.label(format!("Built using {}", env!("RUSTC_VERSION")));
+
+                    ui.separator();
 
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
@@ -407,11 +330,11 @@ impl ShearsApp {
             });
 
             if modal.should_close() {
-                self.ui_state.modal_about = false;
+                self.ui_state.modals[ShearsModals::About as usize] = false;
             }
         }
 
-        self.ui_state.modal_about // if other modals are added, use an OR operator to see if any modal is open
+        self.ui_state.modals[ShearsModals::About as usize] // if other modals are added, use an OR operator to see if any modal is open
     }
 
     fn render_drag_and_drop_preview(&mut self, ctx: &egui::Context) {

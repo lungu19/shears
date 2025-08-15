@@ -45,11 +45,8 @@ pub fn get_shearing_features_availability(folder: &Path) -> ShearingFeaturesAvai
     };
 
     let mut has_forges = false;
-    let mut textures_low_size: u64 = 0;
-    let mut textures_medium_size: u64 = 0;
-    let mut textures_high_size: u64 = 0;
-    let mut textures_very_high_size: u64 = 0;
-    let mut textures_ultra_size: u64 = 0;
+    let mut texture_sizes: [u64; ForgeTextureQualityLevel::COUNT] =
+        [0; ForgeTextureQualityLevel::COUNT];
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -89,31 +86,21 @@ pub fn get_shearing_features_availability(folder: &Path) -> ShearingFeaturesAvai
             continue;
         };
 
-        match quality_level {
-            ForgeTextureQualityLevel::Low => {
-                textures_low_size += get_file_size(&path).unwrap_or(0);
-            }
-            ForgeTextureQualityLevel::Medium => {
-                textures_medium_size += get_file_size(&path).unwrap_or(0);
-            }
-            ForgeTextureQualityLevel::High => {
-                textures_high_size += get_file_size(&path).unwrap_or(0);
-            }
-            ForgeTextureQualityLevel::VeryHigh => {
-                textures_very_high_size += get_file_size(&path).unwrap_or(0);
-            }
-            ForgeTextureQualityLevel::Ultra => {
-                textures_ultra_size += get_file_size(&path).unwrap_or(0);
-            }
-        }
+        texture_sizes[quality_level as usize] += get_file_size(&path).unwrap_or(0);
     }
 
     features.has_forge_files = has_forges;
-    features.textures_low = (textures_low_size > 0, textures_low_size);
-    features.textures_medium = (textures_medium_size > 0, textures_medium_size);
-    features.textures_high = (textures_high_size > 0, textures_high_size);
-    features.textures_very_high = (textures_very_high_size > 0, textures_very_high_size);
-    features.textures_ultra = (textures_ultra_size > 0, textures_ultra_size);
+
+    let low = ForgeTextureQualityLevel::Low as usize;
+    for (dst, &size) in features
+        .textures
+        .iter_mut()
+        .skip(low)
+        .take(ForgeTextureQualityLevel::COUNT)
+        .zip(texture_sizes.iter().skip(low))
+    {
+        *dst = (size > 0, size);
+    }
 
     features.videos = {
         match get_videos_subfolder_size(folder) {
