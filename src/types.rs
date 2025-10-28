@@ -27,6 +27,31 @@ impl Default for ShearsUiState {
     }
 }
 
+impl ShearsUiState {
+    pub fn get_texture_checkbox(self, quality_level: usize) -> bool {
+        *self
+            .checkbox_textures
+            .get(quality_level)
+            .expect("Out of bounds error")
+    }
+
+    pub fn get_texture_checkbox_mut(&mut self, quality_level: usize) -> &mut bool {
+        self.checkbox_textures
+            .get_mut(quality_level)
+            .expect("Out of bounds error")
+    }
+
+    pub fn get_modal(self, modal_index: usize) -> bool {
+        *self.modals.get(modal_index).expect("Out of bounds error")
+    }
+
+    pub fn get_modal_mut(&mut self, modal_index: usize) -> &mut bool {
+        self.modals
+            .get_mut(modal_index)
+            .expect("Out of bounds error")
+    }
+}
+
 #[derive(Default, Clone, Debug)]
 pub struct ShearsFolderState {
     pub siege_path: Option<PathBuf>,
@@ -39,6 +64,21 @@ pub struct ShearingFeaturesAvailability {
 
     pub textures: [(bool, u64); ForgeTextureQualityLevel::COUNT],
     pub videos: (bool, u64),
+}
+
+impl ShearingFeaturesAvailability {
+    pub fn get_texture(self, quality_level: usize) -> (bool, u64) {
+        *self
+            .textures
+            .get(quality_level)
+            .expect("Out of bounds error")
+    }
+
+    pub fn get_texture_mut(&mut self, quality_level: usize) -> &mut (bool, u64) {
+        self.textures
+            .get_mut(quality_level)
+            .expect("Out of bounds error")
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -113,5 +153,7 @@ pub enum ShearsModals {
 }
 
 impl ShearsModals {
-    const COUNT: usize = 1;
+    pub const START: Self = Self::About;
+    pub const END: Self = Self::About;
+    pub const COUNT: usize = 2;
 }

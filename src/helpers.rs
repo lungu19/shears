@@ -86,7 +86,9 @@ pub fn get_shearing_features_availability(folder: &Path) -> ShearingFeaturesAvai
             continue;
         };
 
-        texture_sizes[quality_level as usize] += get_file_size(&path).unwrap_or(0);
+        *texture_sizes
+            .get_mut(quality_level as usize)
+            .expect("Out of bounds error") += get_file_size(&path).unwrap_or(0);
     }
 
     features.has_forge_files = has_forges;
@@ -186,4 +188,40 @@ pub fn windows_confirmation_dialog(title: &str, content: &str) -> bool {
         win_msgbox::OkayCancel::Okay => true,
         win_msgbox::OkayCancel::Cancel => false,
     }
+}
+
+pub fn windows_information_dialog(title: &str, content: &str) {
+    win_msgbox::information::<win_msgbox::Okay>(content)
+        .title(title)
+        .show()
+        .expect("Failed to show windows messagebox");
+}
+
+pub fn windows_error_dialog(title: &str, content: &str) {
+    win_msgbox::error::<win_msgbox::Okay>(content)
+        .title(title)
+        .show()
+        .expect("Failed to show windows messagebox");
+}
+
+pub fn is_siege_running(sys: &mut sysinfo::System) -> bool {
+    let possible_process_names = [
+        "rainbowsixgame.exe",
+        "rainbowsix.exe",
+        "rainbowsix_vulkan.exe",
+        "rainbowsix_dx11.exe",
+    ];
+
+    sys.refresh_processes_specifics(
+        sysinfo::ProcessesToUpdate::All,
+        true,
+        sysinfo::ProcessRefreshKind::nothing(), // only retrieve basic info like name and PID
+    );
+
+    // checks all possible siege process names to see if it's open
+    sys.processes().values().any(|process| {
+        possible_process_names
+            .iter()
+            .any(|&siege_name| process.name().eq_ignore_ascii_case(siege_name))
+    })
 }

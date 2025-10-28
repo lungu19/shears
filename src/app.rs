@@ -1,11 +1,8 @@
-use std::path::Path;
-
-use egui::Color32;
-
 use crate::{
     helpers::{
         delete_texture_files, delete_videos_folder, get_shearing_features_availability,
-        windows_confirmation_dialog, write_streaminginstall,
+        is_siege_running, windows_confirmation_dialog, windows_error_dialog,
+        windows_information_dialog, write_streaminginstall,
     },
     types::{ForgeTextureQualityLevel, ShearsFolderState, ShearsModals, ShearsPage, ShearsUiState},
 };
@@ -14,15 +11,19 @@ use crate::{
 pub struct ShearsApp {
     folder_state: ShearsFolderState,
     ui_state: ShearsUiState,
+    system_information: sysinfo::System,
 }
 
 impl ShearsApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MACCHIATO);
-        Default::default()
+        Self {
+            system_information: sysinfo::System::new(),
+            ..Self::default()
+        }
     }
 
-    pub fn set_folder(&mut self, folder: &Path) {
+    pub fn set_folder(&mut self, folder: &std::path::Path) {
         self.folder_state.siege_path = Some(folder.to_path_buf());
         self.refresh_feature_availablity();
     }
@@ -41,11 +42,16 @@ impl ShearsApp {
         for quality_level in
             ForgeTextureQualityLevel::Low as usize..=ForgeTextureQualityLevel::Ultra as usize
         {
-            self.ui_state.checkbox_textures[quality_level] =
-                self.folder_state.features_availability.textures[quality_level].0;
+            *self.ui_state.get_texture_checkbox_mut(quality_level) = self
+                .folder_state
+                .features_availability
+                .get_texture(quality_level)
+                .0;
         }
 
-        self.folder_state.features_availability.textures[ForgeTextureQualityLevel::Low as usize]
+        self.folder_state
+            .features_availability
+            .get_texture_mut(ForgeTextureQualityLevel::Low as usize)
             .0 = false; // let's avoid users making their games completely unplayable
 
         self.ui_state.checkbox_videos = self.folder_state.features_availability.videos.0;
@@ -56,13 +62,16 @@ impl ShearsApp {
     fn compute_possible_space_freed(&mut self) {
         self.ui_state.label_possible_space_saved = 0;
 
-        for i in
+        for quality_level in
             ForgeTextureQualityLevel::Medium as usize..=ForgeTextureQualityLevel::Ultra as usize
         // the user is not able to remove low textures so we can just skip it here
         {
-            if !self.ui_state.checkbox_textures[i] {
-                self.ui_state.label_possible_space_saved +=
-                    self.folder_state.features_availability.textures[i].1;
+            if !self.ui_state.get_texture_checkbox(quality_level) {
+                self.ui_state.label_possible_space_saved += self
+                    .folder_state
+                    .features_availability
+                    .get_texture(quality_level)
+                    .1;
             }
         }
 
@@ -72,7 +81,7 @@ impl ShearsApp {
         }
     }
 
-    fn execute_shearing(&mut self) {
+    fn execute_shearing(&mut self) -> bool {
         let mut min_texture_quality_level = ForgeTextureQualityLevel::Low;
         for i in (ForgeTextureQualityLevel::Medium.convert_to_i32()
             ..=ForgeTextureQualityLevel::Ultra.convert_to_i32())
@@ -80,7 +89,7 @@ impl ShearsApp {
         {
             let level = ForgeTextureQualityLevel::convert_from_i32(i)
                 .expect("Failed to convert i32 to ForgeTextureQualityLevel");
-            if self.ui_state.checkbox_textures[level as usize] {
+            if self.ui_state.get_texture_checkbox(level as usize) {
                 min_texture_quality_level = level;
                 break;
             }
@@ -98,11 +107,13 @@ impl ShearsApp {
             write_streaminginstall(path).expect("Failed to write streaming install");
 
             self.set_folder(path);
-        }
-    }
-}
 
-impl ShearsApp {
+            return true;
+        }
+
+        false
+    }
+
     fn render_menu_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
@@ -114,7 +125,7 @@ impl ShearsApp {
 
                 ui.menu_button("Help", |ui| {
                     if ui.button("About").clicked() {
-                        self.ui_state.modals[ShearsModals::About as usize] = true;
+                        *self.ui_state.get_modal_mut(ShearsModals::About as usize) = true;
                     }
                 });
 
@@ -138,11 +149,12 @@ impl ShearsApp {
 
     fn render_select_folder_page(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::central_panel(&ctx.style()).inner_margin(75.0))
+            .frame(egui::Frame::central_panel(&ctx.style()))
             .show(ctx, |ui| {
                 ui.centered_and_justified(|ui| {
+                    ui.style_mut().visuals.button_frame = false;
                     if ui
-                        .button("Drag and drop or click this to select the Siege folder...")
+                        .button("Drag and drop or click to select the Siege folder...")
                         .clicked()
                     {
                         if let Some(path) = rfd::FileDialog::new().pick_folder() {
@@ -171,7 +183,7 @@ impl ShearsApp {
         }
 
         if !self.folder_state.features_availability.has_forge_files {
-            ui.label(egui::RichText::new("Folder does not contain FORGE files. Make sure you selected the correct folder.").color(Color32::LIGHT_RED));
+            ui.label(egui::RichText::new("Folder does not contain FORGE files. Make sure you selected the correct folder.").color(egui::Color32::LIGHT_RED));
             return false;
         }
 
@@ -190,12 +202,18 @@ impl ShearsApp {
 
         let ultra_idx = ForgeTextureQualityLevel::Ultra as usize;
         if level_idx < ultra_idx {
-            checkboxes[(level_idx + 1)..=ultra_idx].fill(false);
+            checkboxes
+                .get_mut((level_idx + 1)..=ultra_idx)
+                .expect("Out of bounds error")
+                .fill(false);
         }
 
-        if checkboxes[level_idx] {
+        if *checkboxes.get(level_idx).expect("Out of bounds error") {
             let medium_idx = ForgeTextureQualityLevel::Medium as usize;
-            checkboxes[medium_idx..level_idx].fill(true);
+            checkboxes
+                .get_mut(medium_idx..level_idx)
+                .expect("Out of bounds error")
+                .fill(true);
         }
 
         self.compute_possible_space_freed();
@@ -222,17 +240,24 @@ impl ShearsApp {
                         .expect("Failed to convert i32 to ForgeTextureQualityLevel");
 
                 ui.add_enabled_ui(
-                    self.folder_state.features_availability.textures[quality_level].0,
+                    self.folder_state
+                        .features_availability
+                        .get_texture(quality_level)
+                        .0,
                     |ui| {
                         if ui
                             .checkbox(
-                                &mut self.ui_state.checkbox_textures[quality_level],
+                                self.ui_state
+                                    .checkbox_textures
+                                    .get_mut(quality_level)
+                                    .expect("Out of bounds error"),
                                 format!(
                                     "{} Textures ({})",
                                     forge_texture_quality_level,
                                     humansize::format_size(
-                                        self.folder_state.features_availability.textures
-                                            [quality_level]
+                                        self.folder_state
+                                            .features_availability
+                                            .get_texture(quality_level)
                                             .1,
                                         humansize::WINDOWS
                                     )
@@ -289,15 +314,27 @@ impl ShearsApp {
                                 "Are you sure you want to continue? This change is permanent and cannot be undone. After proceeding you must verify your installation and re-download any affected files.",
                             )
                         {
-                            self.execute_shearing();
+                            if is_siege_running(&mut self.system_information) {
+                                windows_error_dialog("Error", "Rainbow Six Siege is currently running! Please close it before shearing.");
+                                return;
+                            }
+                            if self.execute_shearing() {
+                                let message = self.folder_state.siege_path.as_ref()
+                                    .map(|path| format!("{} has been successfully sheared.", path.display()))
+                                    .unwrap_or_else(|| "The Siege folder has been successfully sheared.".to_owned());
+                                windows_information_dialog("Success", &message);
+                            } else {
+                                windows_error_dialog("Failure", "Shearing failed.");
+                            }
                         }
-                    });
-                });
+                    }
+                );
             });
+        });
     }
 
     fn render_modals(&mut self, ctx: &egui::Context) -> bool {
-        if self.ui_state.modals[ShearsModals::About as usize] {
+        if self.ui_state.get_modal(ShearsModals::About as usize) {
             let modal = egui::Modal::new(egui::Id::new("ModalAbout")).show(ctx, |ui| {
                 ui.set_width(350.0);
 
@@ -319,7 +356,7 @@ impl ShearsApp {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
                         ui.label("Join the ");
-                        ui.hyperlink_to("R6 Throwback", "https://discord.gg/JGA9WPF4K8");
+                        ui.hyperlink_to("R6 Throwback", "https://discord.gg/yxpT6EChgr");
                         ui.label(" Discord server");
                     });
                 });
@@ -330,11 +367,15 @@ impl ShearsApp {
             });
 
             if modal.should_close() {
-                self.ui_state.modals[ShearsModals::About as usize] = false;
+                *self.ui_state.get_modal_mut(ShearsModals::About as usize) = false;
             }
         }
 
-        self.ui_state.modals[ShearsModals::About as usize] // if other modals are added, use an OR operator to see if any modal is open
+        let mut any_modal_open = false;
+        for modal in ShearsModals::START as usize..=ShearsModals::END as usize {
+            any_modal_open &= self.ui_state.get_modal(modal);
+        }
+        any_modal_open
     }
 
     fn render_drag_and_drop_preview(&mut self, ctx: &egui::Context) {
@@ -372,14 +413,20 @@ impl ShearsApp {
                 egui::Align2::CENTER_CENTER,
                 text,
                 egui::TextStyle::Body.resolve(&ctx.style()),
-                Color32::WHITE,
+                egui::Color32::WHITE,
             );
         }
 
         // logic
         ctx.input(|i| {
             if i.raw.dropped_files.len() == 1 {
-                if let Some(path) = &i.raw.dropped_files[0].path {
+                if let Some(path) = &i
+                    .raw
+                    .dropped_files
+                    .first()
+                    .expect("Out of bounds error")
+                    .path
+                {
                     // If a file is dropped instead of a folder, use its parent folder path instead
                     let folder_path = if path.is_dir() {
                         Some(path.clone())
