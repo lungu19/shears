@@ -17,6 +17,17 @@ pub struct ShearsApp {
 impl ShearsApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         catppuccin_egui::set_theme(&cc.egui_ctx, catppuccin_egui::MACCHIATO);
+
+        cc.egui_ctx.all_styles_mut(|style| {
+            style.visuals.widgets.active.corner_radius = egui::CornerRadius::same(30);
+            style.visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(30);
+            style.visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(30);
+            style.visuals.widgets.noninteractive.corner_radius = egui::CornerRadius::same(8);
+            style.visuals.widgets.open.corner_radius = egui::CornerRadius::same(30);
+
+            style.spacing.button_padding = egui::vec2(5., 2.5);
+        });
+
         Self {
             system_information: sysinfo::System::new(),
             ..Self::default()
@@ -220,71 +231,73 @@ impl ShearsApp {
 
     fn render_folder_selected_page_available_features(&mut self, ui: &mut egui::Ui) {
         // the texture checkboxes make sure you cant select for example, high without low, and so on up to ultra
-        ui.group(|ui| {
-            ui.horizontal(|ui| {
-                ui.heading(egui::RichText::new("Features"));
-                if ui.button("Refresh").clicked() {
-                    self.refresh_feature_availablity();
+        egui::Frame::group(ui.style())
+            .fill(ui.style().visuals.extreme_bg_color)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.heading(egui::RichText::new("Features"));
+                    if ui.button("Refresh").clicked() {
+                        self.refresh_feature_availablity();
+                    }
+                });
+                ui.label("Choose what you want to keep");
+
+                ui.separator();
+
+                for quality_level in ForgeTextureQualityLevel::Low as usize
+                    ..=ForgeTextureQualityLevel::Ultra as usize
+                {
+                    let forge_texture_quality_level =
+                        ForgeTextureQualityLevel::convert_from_i32(quality_level as i32)
+                            .expect("Failed to convert i32 to ForgeTextureQualityLevel");
+
+                    ui.add_enabled_ui(
+                        self.folder_state
+                            .features_availability
+                            .get_texture(quality_level)
+                            .0,
+                        |ui| {
+                            if ui
+                                .checkbox(
+                                    self.ui_state
+                                        .checkbox_textures
+                                        .get_mut(quality_level)
+                                        .expect("Out of bounds error"),
+                                    format!(
+                                        "{} Textures ({})",
+                                        forge_texture_quality_level,
+                                        humansize::format_size(
+                                            self.folder_state
+                                                .features_availability
+                                                .get_texture(quality_level)
+                                                .1,
+                                            humansize::WINDOWS
+                                        )
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.validate_ui_state_checkbox(forge_texture_quality_level);
+                            }
+                        },
+                    );
                 }
-            });
-            ui.label("Choose what you want to keep");
 
-            ui.separator();
+                ui.separator();
 
-            for quality_level in
-                ForgeTextureQualityLevel::Low as usize..=ForgeTextureQualityLevel::Ultra as usize
-            {
-                let forge_texture_quality_level =
-                    ForgeTextureQualityLevel::convert_from_i32(quality_level as i32)
-                        .expect("Failed to convert i32 to ForgeTextureQualityLevel");
-
-                ui.add_enabled_ui(
-                    self.folder_state
-                        .features_availability
-                        .get_texture(quality_level)
-                        .0,
-                    |ui| {
-                        if ui
-                            .checkbox(
-                                self.ui_state
-                                    .checkbox_textures
-                                    .get_mut(quality_level)
-                                    .expect("Out of bounds error"),
-                                format!(
-                                    "{} Textures ({})",
-                                    forge_texture_quality_level,
-                                    humansize::format_size(
-                                        self.folder_state
-                                            .features_availability
-                                            .get_texture(quality_level)
-                                            .1,
-                                        humansize::WINDOWS
-                                    )
-                                ),
+                ui.add_enabled_ui(self.folder_state.features_availability.videos.0, |ui| {
+                    ui.checkbox(
+                        &mut self.ui_state.checkbox_videos,
+                        format!(
+                            "Videos ({})",
+                            humansize::format_size(
+                                self.folder_state.features_availability.videos.1,
+                                humansize::WINDOWS
                             )
-                            .clicked()
-                        {
-                            self.validate_ui_state_checkbox(forge_texture_quality_level);
-                        }
-                    },
-                );
-            }
-
-            ui.separator();
-
-            ui.add_enabled_ui(self.folder_state.features_availability.videos.0, |ui| {
-                ui.checkbox(
-                    &mut self.ui_state.checkbox_videos,
-                    format!(
-                        "Videos ({})",
-                        humansize::format_size(
-                            self.folder_state.features_availability.videos.1,
-                            humansize::WINDOWS
-                        )
-                    ),
-                );
+                        ),
+                    );
+                });
             });
-        });
     }
 
     fn render_folder_selected_page(&mut self, ctx: &egui::Context) {
