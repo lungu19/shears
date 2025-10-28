@@ -147,11 +147,11 @@ pub fn delete_texture_files(folder: &Path, min_quality_level: &ForgeTextureQuali
             continue;
         };
 
-        if quality > *min_quality_level {
-            if let Some(err) = std::fs::remove_file(&path).err() {
-                let path_string = path.display().to_string();
-                log::warn!("Unable to delete {path_string} because {err}.");
-            }
+        if quality > *min_quality_level
+            && let Some(err) = std::fs::remove_file(&path).err()
+        {
+            let path_string = path.display().to_string();
+            log::warn!("Unable to delete {path_string} because {err}.");
         }
     }
 }

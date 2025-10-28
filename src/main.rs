@@ -44,31 +44,31 @@ pub fn run_shears_version_check_thread() {
         if let Ok(raw_json) = &response.as_str() {
             let json = microjson::JSONValue::load(raw_json);
 
-            if let Ok(version_value) = json.get_key_value("tag_name") {
-                if let Ok(version_string) = version_value.read_string() {
-                    let current_version = env!("CARGO_PKG_VERSION");
+            if let Ok(version_value) = json.get_key_value("tag_name")
+                && let Ok(version_string) = version_value.read_string()
+            {
+                let current_version = env!("CARGO_PKG_VERSION");
 
-                    log::info!("current_version: {current_version}");
-                    log::info!("version_string: {version_string}");
+                log::info!("current_version: {current_version}");
+                log::info!("version_string: {version_string}");
 
-                    if current_version == version_string {
-                        log::info!("Shears is up-to-date");
-                        return;
+                if current_version == version_string {
+                    log::info!("Shears is up-to-date");
+                    return;
+                }
+
+                log::info!("Shears is not up-to-date");
+                match win_msgbox::warning::<win_msgbox::OkayCancel>(
+                    "A newer version of Shears is available. Do you want to update now?",
+                )
+                .show()
+                .expect("Failed to show messagebox")
+                {
+                    win_msgbox::OkayCancel::Okay => {
+                        open::that("https://github.com/lungu19/shears/releases/latest")
+                            .expect("Failed to open link in browser");
                     }
-
-                    log::info!("Shears is not up-to-date");
-                    match win_msgbox::warning::<win_msgbox::OkayCancel>(
-                        "A newer version of Shears is available. Do you want to update now?",
-                    )
-                    .show()
-                    .expect("Failed to show messagebox")
-                    {
-                        win_msgbox::OkayCancel::Okay => {
-                            open::that("https://github.com/lungu19/shears/releases/latest")
-                                .expect("Failed to open link in browser");
-                        }
-                        win_msgbox::OkayCancel::Cancel => {}
-                    }
+                    win_msgbox::OkayCancel::Cancel => {}
                 }
             }
         } else {

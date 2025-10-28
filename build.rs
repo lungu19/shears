@@ -17,7 +17,7 @@ fn set_executable_icon() -> bool {
             .set_manifest(include_str!("assets\\app.manifest"));
 
         if let Err(error) = res.compile() {
-            eprintln!("{error}");
+            println!("{error}");
             return false;
         }
     }
@@ -33,7 +33,7 @@ fn set_rustc_env_variable() -> bool {
 
     match String::from_utf8(output.stdout) {
         Err(error) => {
-            eprintln!("{error}");
+            println!("{error}");
             false
         }
         Ok(version) => {

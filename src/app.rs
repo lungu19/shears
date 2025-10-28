@@ -156,10 +156,9 @@ impl ShearsApp {
                     if ui
                         .button("Drag and drop or click to select the Siege folder...")
                         .clicked()
+                        && let Some(path) = rfd::FileDialog::new().pick_folder()
                     {
-                        if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                            self.set_folder(&path);
-                        }
+                        self.set_folder(&path);
                     }
                 });
             });
@@ -167,10 +166,10 @@ impl ShearsApp {
 
     fn render_folder_selected_page_header(&mut self, ui: &mut egui::Ui) -> bool {
         ui.horizontal(|ui| {
-            if ui.button("Select another folder").clicked() {
-                if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                    self.set_folder(&path);
-                }
+            if ui.button("Select another folder").clicked()
+                && let Some(path) = rfd::FileDialog::new().pick_folder()
+            {
+                self.set_folder(&path);
             }
         });
 
@@ -386,16 +385,16 @@ impl ShearsApp {
                     return "Please drop a single file or folder.".to_owned();
                 }
 
-                if let Some(file) = i.raw.hovered_files.first() {
-                    if let Some(path) = &file.path {
-                        let target_path = if path.is_dir() {
-                            path.clone()
-                        } else {
-                            path.parent()
-                                .map_or_else(|| path.clone(), |p| p.to_path_buf()) // If it's a file, copy the parent folder
-                        };
-                        return format!("Drop to select folder:\n{}", target_path.display());
-                    }
+                if let Some(file) = i.raw.hovered_files.first()
+                    && let Some(path) = &file.path
+                {
+                    let target_path = if path.is_dir() {
+                        path.clone()
+                    } else {
+                        path.parent()
+                            .map_or_else(|| path.clone(), |p| p.to_path_buf()) // If it's a file, copy the parent folder
+                    };
+                    return format!("Drop to select folder:\n{}", target_path.display());
                 }
 
                 "Drop to select folder".to_owned() // Fallback
@@ -419,24 +418,23 @@ impl ShearsApp {
 
         // logic
         ctx.input(|i| {
-            if i.raw.dropped_files.len() == 1 {
-                if let Some(path) = &i
+            if i.raw.dropped_files.len() == 1
+                && let Some(path) = &i
                     .raw
                     .dropped_files
                     .first()
                     .expect("Out of bounds error")
                     .path
-                {
-                    // If a file is dropped instead of a folder, use its parent folder path instead
-                    let folder_path = if path.is_dir() {
-                        Some(path.clone())
-                    } else {
-                        path.parent().map(|p| p.to_path_buf())
-                    };
+            {
+                // If a file is dropped instead of a folder, use its parent folder path instead
+                let folder_path = if path.is_dir() {
+                    Some(path.clone())
+                } else {
+                    path.parent().map(|p| p.to_path_buf())
+                };
 
-                    if let Some(p) = folder_path {
-                        self.set_folder(&p);
-                    }
+                if let Some(p) = folder_path {
+                    self.set_folder(&p);
                 }
             }
         });
