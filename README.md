@@ -31,16 +31,8 @@ If you prefer to build the application yourself, follow these steps.
 ### Prerequisites
 
 - A working and up-to-date [Rust installation](https://www.rust-lang.org/tools/install).
-- Rust **nightly** toolchain and `x86_64-pc-windows-msvc` target installed:
-	```batch
-	rustup target add x86_64-pc-windows-msvc
-	rustup toolchain install nightly
-	rustup component add rust-src --toolchain nightly
-	```
 
 ### Steps
-> [!IMPORTANT]
-> Note that Shears uses aggresive size-saving techniques such as building the standard library from source and using link-time optimizations.
 1.  Clone the repository:
     ```batch
     git clone https://github.com/lungu19/shears.git
@@ -49,8 +41,7 @@ If you prefer to build the application yourself, follow these steps.
 2.  Build the project:
 
 	```batch
-	set RUSTFLAGS=-Zlocation-detail=none -Zfmt-debug=none
-	cargo +nightly build -Z build-std=std,panic_abort -Z build-std-features=panic_immediate_abort --target x86_64-pc-windows-msvc --release
+	cargo build --target x86_64-pc-windows-msvc --release
 	```
 
 The executable will be located in the `target/x86_64-pc-windows-msvc/` folder.

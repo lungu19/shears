@@ -7,6 +7,7 @@ pub struct ShearsUiState {
 
     pub checkbox_textures: [bool; ForgeTextureQualityLevel::COUNT],
     pub checkbox_videos: bool,
+    pub checkbox_events: bool,
 
     pub label_possible_space_saved: u64,
 
@@ -20,6 +21,7 @@ impl Default for ShearsUiState {
 
             checkbox_textures: [true; ForgeTextureQualityLevel::COUNT],
             checkbox_videos: true,
+            checkbox_events: true,
 
             label_possible_space_saved: 0,
             modals: [false; ShearsModals::COUNT],
@@ -32,23 +34,26 @@ impl ShearsUiState {
         *self
             .checkbox_textures
             .get(quality_level)
-            .expect("Out of bounds error")
+            .expect("ShearsUiState.get_texture_checkbox: Out of bounds error")
     }
 
     pub fn get_texture_checkbox_mut(&mut self, quality_level: usize) -> &mut bool {
         self.checkbox_textures
             .get_mut(quality_level)
-            .expect("Out of bounds error")
+            .expect("ShearsUiState.get_texture_checkbox_mut: Out of bounds error")
     }
 
     pub fn get_modal(self, modal_index: usize) -> bool {
-        *self.modals.get(modal_index).expect("Out of bounds error")
+        *self
+            .modals
+            .get(modal_index)
+            .expect("ShearsUiState.get_modal: Out of bounds error")
     }
 
     pub fn get_modal_mut(&mut self, modal_index: usize) -> &mut bool {
         self.modals
             .get_mut(modal_index)
-            .expect("Out of bounds error")
+            .expect("ShearsUiState.get_modal_mut: Out of bounds error")
     }
 }
 
@@ -64,6 +69,7 @@ pub struct ShearingFeaturesAvailability {
 
     pub textures: [(bool, u64); ForgeTextureQualityLevel::COUNT],
     pub videos: (bool, u64),
+    pub events: (bool, u64),
 }
 
 impl ShearingFeaturesAvailability {
@@ -71,13 +77,13 @@ impl ShearingFeaturesAvailability {
         *self
             .textures
             .get(quality_level)
-            .expect("Out of bounds error")
+            .expect("ShearingFeaturesAvailability.get_texture: Out of bounds error")
     }
 
     pub fn get_texture_mut(&mut self, quality_level: usize) -> &mut (bool, u64) {
         self.textures
             .get_mut(quality_level)
-            .expect("Out of bounds error")
+            .expect("ShearingFeaturesAvailability.get_texture_mut: Out of bounds error")
     }
 }
 

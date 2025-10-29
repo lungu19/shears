@@ -26,11 +26,9 @@ win-msgbox = "0.2"  # windows messagebox
 winres = "0.1"  # for custom executable icon
 
 [profile.release]
-opt-level = "z"
+opt-level = 2
 strip = true
 lto = true
-panic = "abort"
-codegen-units = 1
 
 # ----------------------------------------------------------------------------------------
 # Lints:

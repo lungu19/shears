@@ -37,6 +37,37 @@ fn get_videos_subfolder_size(folder: &Path) -> Result<u64> {
     get_folder_size(&video_sub_folder)
 }
 
+fn get_events_size(folder: &Path) -> u64 {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return 0;
+    };
+
+    let mut size = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        let Some(ext) = path.extension().and_then(|s| s.to_str()) else {
+            continue;
+        };
+
+        let Some(filename) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+
+        if !ext.eq_ignore_ascii_case("forge") && !ext.eq_ignore_ascii_case("depgraphbin") {
+            continue;
+        }
+
+        if !filename.contains("events") {
+            continue;
+        }
+
+        size += get_file_size(&path).unwrap_or(0);
+    }
+
+    size
+}
+
 pub fn get_shearing_features_availability(folder: &Path) -> ShearingFeaturesAvailability {
     let mut features = ShearingFeaturesAvailability::default();
 
@@ -88,7 +119,8 @@ pub fn get_shearing_features_availability(folder: &Path) -> ShearingFeaturesAvai
 
         *texture_sizes
             .get_mut(quality_level as usize)
-            .expect("Out of bounds error") += get_file_size(&path).unwrap_or(0);
+            .expect("get_shearing_features_availability.*texture_sizes: Out of bounds error") +=
+            get_file_size(&path).unwrap_or(0);
     }
 
     features.has_forge_files = has_forges;
@@ -109,6 +141,11 @@ pub fn get_shearing_features_availability(folder: &Path) -> ShearingFeaturesAvai
             Err(_) => (false, 0),
             Ok(o) => (o > 0, o),
         }
+    };
+
+    features.events = {
+        let res = get_events_size(folder);
+        (res > 0, res)
     };
 
     features
@@ -162,6 +199,36 @@ pub fn delete_videos_folder(folder: &Path) {
     if let Some(err) = std::fs::remove_dir_all(&video_sub_folder).err() {
         let path_string = video_sub_folder.display().to_string();
         log::warn!("Unable to delete {path_string} because {err}.");
+    }
+}
+
+pub fn delete_events_folder(folder: &Path) {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        let Some(ext) = path.extension().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !ext.eq_ignore_ascii_case("forge") && !ext.eq_ignore_ascii_case("depgraphbin") {
+            continue;
+        }
+
+        let Some(filename) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+
+        if !filename.contains("events") {
+            continue;
+        }
+
+        if let Some(err) = std::fs::remove_file(&path).err() {
+            let path_string = path.display().to_string();
+            log::warn!("Unable to delete event file {path_string} because {err}.");
+        }
     }
 }
 
