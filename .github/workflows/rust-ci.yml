@@ -9,9 +9,15 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: windows-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout repo
@@ -20,7 +26,8 @@ jobs:
     - name: Install Rust nightly
       uses: dtolnay/rust-toolchain@nightly
 
-    - uses: Swatinem/rust-cache@v2
+    - name: Cache build artifacts
+      uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: true
 
@@ -29,3 +36,40 @@ jobs:
 
     - name: Run clippy
       run: cargo clippy --all -- -D warnings
+  
+  release:
+    runs-on: windows-latest
+    needs: check
+    if: github.ref_type == 'tag'
+
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v5
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+
+    - name: Cache build artifacts
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+    
+    - name: Build binary
+      run: cargo build --target x86_64-pc-windows-msvc --release
+
+    - name: Package for release
+      shell: pwsh
+      run: |
+        $ASSET_NAME = "shears-${{ github.ref_name }}.zip"
+        $BINARY_PATH = "target/x86_64-pc-windows-msvc/release/shears.exe"
+        Compress-Archive -Path $BINARY_PATH -DestinationPath $ASSET_NAME
+        echo "ASSET_PATH=$ASSET_NAME" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        generate_release_notes: true
+        files: ${{ env.ASSET_PATH }}
