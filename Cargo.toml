@@ -1,6 +1,6 @@
 [package]
 name = "shears"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["lungu19"]
 edition = "2024"
 rust-version = "1.94"
