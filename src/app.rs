@@ -174,7 +174,7 @@ impl ShearsApp {
                 ui.centered_and_justified(|ui| {
                     ui.style_mut().visuals.button_frame = false;
                     if ui
-                        .button("Drag and drop or click to select the Siege folder...")
+                        .button("Drag and drop or click to select the Siege .exe file...")
                         .clicked()
                         && let Some(path) = rfd::FileDialog::new().pick_folder()
                     {
@@ -419,6 +419,73 @@ impl ShearsApp {
     }
 
     fn render_drag_and_drop_preview(&mut self, ctx: &egui::Context) {
+        if !ctx.input(|i| i.raw.hovered_files.is_empty()) {
+            let text = ctx.input(|i| {
+                if i.raw.hovered_files.len() > 1 {
+                    return "Only drop a single file.".to_owned();
+                }
+
+                if let Some(file) = i.raw.hovered_files.first()
+                    && let Some(path) = &file.path
+                {
+                    let is_valid_exe = path.is_file()
+                        && path
+                            .extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"));
+
+                    if is_valid_exe {
+                        return format!("Drop to select executable:\n{}", path.display());
+                    } else {
+                        return "Only .exe files are accepted.".to_owned();
+                    }
+                }
+
+                "You shouldn't be able to see this message.".to_owned() // Fallback
+            });
+
+            let painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Foreground,
+                egui::Id::new("file_drop_target"),
+            ));
+
+            let content_rect = ctx.content_rect();
+            painter.rect_filled(content_rect, 0.0, egui::Color32::from_black_alpha(192));
+            painter.text(
+                content_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                text,
+                egui::TextStyle::Body.resolve(&ctx.style()),
+                egui::Color32::WHITE,
+            );
+        }
+
+        ctx.input(|i| {
+            if i.raw.dropped_files.len() == 1
+                && let Some(path) = &i
+                    .raw
+                    .dropped_files
+                    .first()
+                    .expect("Out of bounds error")
+                    .path
+            {
+                // Check if the dropped path is specifically a file (ignores directories)
+                if path.is_file()
+                    && path
+                        .extension()
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
+                {
+                    // Get the parent folder of that file
+                    if let Some(parent) = path.parent() {
+                        self.set_folder(parent);
+                    }
+                }
+            }
+        });
+    }
+
+    // TODO: when persistent settings are added, add an option for the "loose" selection (old behaviour, currently unused)
+    #[expect(dead_code)]
+    fn render_drag_and_drop_preview_loose(&mut self, ctx: &egui::Context) {
         // ui
         if !ctx.input(|i| i.raw.hovered_files.is_empty()) {
             let text = ctx.input(|i| {
