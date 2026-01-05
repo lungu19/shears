@@ -246,31 +246,6 @@ pub fn write_streaminginstall(siege_folder: &std::path::Path) -> std::io::Result
     Ok(())
 }
 
-pub fn windows_confirmation_dialog(title: &str, content: &str) -> bool {
-    match win_msgbox::warning::<win_msgbox::OkayCancel>(content)
-        .title(title)
-        .show()
-        .expect("Failed to show windows messagebox")
-    {
-        win_msgbox::OkayCancel::Okay => true,
-        win_msgbox::OkayCancel::Cancel => false,
-    }
-}
-
-pub fn windows_information_dialog(title: &str, content: &str) {
-    win_msgbox::information::<win_msgbox::Okay>(content)
-        .title(title)
-        .show()
-        .expect("Failed to show windows messagebox");
-}
-
-pub fn windows_error_dialog(title: &str, content: &str) {
-    win_msgbox::error::<win_msgbox::Okay>(content)
-        .title(title)
-        .show()
-        .expect("Failed to show windows messagebox");
-}
-
 pub fn is_siege_running(sys: &mut sysinfo::System) -> bool {
     let possible_process_names = [
         "rainbowsixgame.exe",

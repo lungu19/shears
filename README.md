@@ -22,15 +22,18 @@ Using Shears is incredibly easy:
 
 ## Download
 
-You can download the latest pre-compiled version of Shears from the [**Releases Page**](https://github.com/lungu19/shears/releases).
+You can download the latest pre-compiled version of Shears from the [**Releases Page**](https://github.com/lungu19/shears/releases) (only Windows builds are available as of now).
 
 ## Building from Source
 
 If you prefer to build the application yourself, follow these steps.
 
 ### Prerequisites
+> [!WARNING]
+> ⚠️ Important Note: Linux support is experimental.
 
 - A working and up-to-date [Rust installation](https://www.rust-lang.org/tools/install).
+- (Debian/Ubuntu/Mint Linux) install the following packages: `sudo apt-get install libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev`
 
 ### Steps
 1.  Clone the repository:
@@ -41,10 +44,10 @@ If you prefer to build the application yourself, follow these steps.
 2.  Build the project:
 
 	```batch
-	cargo build --target x86_64-pc-windows-msvc --release
+	cargo build --release
 	```
 
-The executable will be located in the `target/x86_64-pc-windows-msvc/` folder.
+The executable will be located in the `target/release/` folder.
 
 ## Contributing
 

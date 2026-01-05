@@ -1,8 +1,7 @@
 use crate::{
     helpers::{
         delete_events_folder, delete_texture_files, delete_videos_folder,
-        get_shearing_features_availability, is_siege_running, windows_confirmation_dialog,
-        windows_error_dialog, windows_information_dialog, write_streaminginstall,
+        get_shearing_features_availability, is_siege_running, write_streaminginstall,
     },
     types::{ForgeTextureQualityLevel, ShearsFolderState, ShearsModals, ShearsPage, ShearsUiState},
 };
@@ -349,22 +348,44 @@ impl ShearsApp {
                         ));
 
                         if ui.button("Shear!").clicked()
-                            && windows_confirmation_dialog(
-                                "Warning",
-                                "Are you sure you want to continue? This change is permanent and cannot be undone. After proceeding you must verify your installation and re-download any affected files.",
-                            )
+                            && native_dialog::DialogBuilder::message()
+                            .set_level(native_dialog::MessageLevel::Warning)
+                            .set_title("Read before proceeding")
+                            .set_text("Are you sure you want to continue? This change is permanent and cannot be undone. After proceeding you must verify your installation and re-download any affected files.")
+                            .confirm()
+                            .show()
+                            .expect("Failed to show dialog")
                         {
                             if is_siege_running(&mut self.system_information) {
-                                windows_error_dialog("Error", "Rainbow Six Siege is currently running! Please close it before shearing.");
+                                native_dialog::DialogBuilder::message()
+                                    .set_level(native_dialog::MessageLevel::Error)
+                                    .set_title("Error")
+                                    .set_text("Rainbow Six Siege is currently running! Please close it before shearing.")
+                                    .alert()
+                                    .show()
+                                    .expect("Failed to show dialog");
                                 return;
                             }
                             if self.execute_shearing() {
                                 let message = self.folder_state.siege_path.as_ref()
-                                    .map(|path| format!("{} has been successfully sheared.", path.display()))
+                                    .map(|path| format!("\"{}\" has been successfully sheared.", path.display()))
                                     .unwrap_or_else(|| "The Siege folder has been successfully sheared.".to_owned());
-                                windows_information_dialog("Success", &message);
+
+                                native_dialog::DialogBuilder::message()
+                                    .set_level(native_dialog::MessageLevel::Info)
+                                    .set_title("Success")
+                                    .set_text(&message)
+                                    .alert()
+                                    .show()
+                                    .expect("Failed to show dialog");
                             } else {
-                                windows_error_dialog("Failure", "Shearing failed.");
+                                native_dialog::DialogBuilder::message()
+                                    .set_level(native_dialog::MessageLevel::Error)
+                                    .set_title("Failure")
+                                    .set_text("Shearing failed.")
+                                    .alert()
+                                    .show()
+                                    .expect("Failed to show dialog");
                             }
                         }
                     }

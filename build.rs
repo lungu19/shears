@@ -9,6 +9,7 @@ fn main() {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn set_executable_icon() -> bool {
     if cfg!(target_os = "windows") {
         let mut res = winres::WindowsResource::new();
@@ -22,6 +23,11 @@ fn set_executable_icon() -> bool {
         }
     }
 
+    true
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_executable_icon() -> bool {
     true
 }
 

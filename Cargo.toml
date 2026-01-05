@@ -16,13 +16,16 @@ eframe = { version = "0.33", default-features = false, features = ["glow"] }
 humansize = "2.1"  # format bytes in a human-readable way
 log = "0.4"
 microjson = "0.1"  # parse json response
-minreq = { version = "2.14", features = ["https-native"] }  # send HTTPS requests to Github API to get latest release version
 open = "5.3"  # open link in browser
 rfd = "0.16"  # folder picker
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
-win-msgbox = "0.2"  # windows messagebox
+native-dialog = "0.9.4"
+minreq = { version = "2.14", features = ["https"]}  # send HTTPS requests to Github API to get latest release version
 
-[build-dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
+eframe = { version = "0.33", default-features = false, features = ["wayland", "x11"] }
+
+[target.'cfg(windows)'.build-dependencies]
 winres = "0.1"  # for custom executable icon
 
 [profile.release]

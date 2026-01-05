@@ -6,9 +6,12 @@ fn main() {
     run_shears_version_check_thread();
 
     if let Err(e) = shears_main() {
-        win_msgbox::error::<win_msgbox::Okay>(&e.to_string())
+        native_dialog::DialogBuilder::message()
+            .set_level(native_dialog::MessageLevel::Error)
+            .set_text(e.to_string())
+            .alert()
             .show()
-            .expect("Failed to show messagebox");
+            .expect("Failed to show dialog");
     }
 }
 
@@ -57,19 +60,19 @@ pub fn run_shears_version_check_thread() {
                     return;
                 }
 
-                log::info!("Shears is not up-to-date");
-                match win_msgbox::warning::<win_msgbox::OkayCancel>(
-                    "A newer version of Shears is available. Do you want to update now?",
-                )
-                .show()
-                .expect("Failed to show messagebox")
+                if native_dialog::DialogBuilder::message()
+                    .set_level(native_dialog::MessageLevel::Warning)
+                    .set_title("Shears is not up-to-date")
+                    .set_text("A newer version of Shears is available. Do you want to update now?")
+                    .confirm()
+                    .show()
+                    .expect("Failed to show dialog")
                 {
-                    win_msgbox::OkayCancel::Okay => {
-                        open::that("https://github.com/lungu19/shears/releases/latest")
-                            .expect("Failed to open link in browser");
-                    }
-                    win_msgbox::OkayCancel::Cancel => {}
+                    open::that("https://github.com/lungu19/shears/releases/latest")
+                        .expect("Failed to open link in browser");
                 }
+
+                log::info!("Shears is not up-to-date");
             }
         } else {
             log::warn!("Failed to get json value");
