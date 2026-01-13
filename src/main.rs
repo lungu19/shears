@@ -16,10 +16,13 @@ fn main() {
 }
 
 fn shears_main() -> eframe::Result {
+    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+
     let window_size = [600.0, 450.0];
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_app_id("Shears")
             .with_inner_size(window_size)
             .with_icon(
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon.png")[..])

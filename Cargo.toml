@@ -1,6 +1,6 @@
 [package]
 name = "shears"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["lungu19"]
 edition = "2024"
 rust-version = "1.94"
@@ -12,18 +12,19 @@ catppuccin-egui = { version = "5.7", default-features = false, features = [
   "egui33",
 ] }  # egui theming
 egui = "0.33"
-eframe = { version = "0.33", default-features = false, features = ["glow"] }
+eframe = { version = "0.33", default-features = false, features = ["glow", "wayland", "x11"] }
 humansize = "2.1"  # format bytes in a human-readable way
 log = "0.4"
 microjson = "0.1"  # parse json response
 open = "5.3"  # open link in browser
-rfd = "0.16"  # folder picker
+rfd = "0.17"  # folder picker
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
-native-dialog = "0.9.4"
+native-dialog = "0.9"
 minreq = { version = "2.14", features = ["https"]}  # send HTTPS requests to Github API to get latest release version
-
-[target.'cfg(target_os = "linux")'.dependencies]
-eframe = { version = "0.33", default-features = false, features = ["wayland", "x11"] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.9"
+directories = "6.0"
+env_logger = { version = "0.11.8", default-features = false, features = [ "auto-color", "humantime" ]}
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"  # for custom executable icon

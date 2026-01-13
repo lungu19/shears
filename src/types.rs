@@ -156,10 +156,11 @@ pub enum ShearsPage {
 #[derive(Clone, Copy, Debug)]
 pub enum ShearsModals {
     About = 0,
+    Settings,
 }
 
 impl ShearsModals {
     pub const START: Self = Self::About;
-    pub const END: Self = Self::About;
+    pub const END: Self = Self::Settings;
     pub const COUNT: usize = 2;
 }

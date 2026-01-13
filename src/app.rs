@@ -3,6 +3,7 @@ use crate::{
         delete_events_folder, delete_texture_files, delete_videos_folder,
         get_shearing_features_availability, is_siege_running, write_streaminginstall,
     },
+    settings::PersistentSettingsStorage,
     types::{ForgeTextureQualityLevel, ShearsFolderState, ShearsModals, ShearsPage, ShearsUiState},
 };
 
@@ -11,6 +12,7 @@ pub struct ShearsApp {
     folder_state: ShearsFolderState,
     ui_state: ShearsUiState,
     system_information: sysinfo::System,
+    persistent_settings_storage: PersistentSettingsStorage,
 }
 
 impl ShearsApp {
@@ -29,6 +31,7 @@ impl ShearsApp {
 
         Self {
             system_information: sysinfo::System::new(),
+            persistent_settings_storage: PersistentSettingsStorage::load_or_default(),
             ..Self::default()
         }
     }
@@ -137,7 +140,20 @@ impl ShearsApp {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::MenuBar::new().ui(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if ui.button("Open Siege folder").clicked()
+                        && let Some(path) = rfd::FileDialog::new().pick_folder()
+                    {
+                        log::info!("Clicked on `Open Siege folder` button");
+                        self.set_folder(&path);
+                    }
+
+                    if ui.button("Settings").clicked() {
+                        log::info!("Clicked on `Settings` button");
+                        *self.ui_state.get_modal_mut(ShearsModals::Settings as usize) = true;
+                    }
+                    ui.separator();
                     if ui.button("Quit").clicked() {
+                        log::info!("Clicked on `Quit` button");
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
@@ -170,11 +186,15 @@ impl ShearsApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(&ctx.style()))
             .show(ctx, |ui| {
+                let string = if self.persistent_settings_storage.use_loose_selection {
+                    "Drag and drop or click to select the Siege folder..."
+                } else {
+                    "Drag and drop or click to select the Siege .exe file..."
+                };
+
                 ui.centered_and_justified(|ui| {
                     ui.style_mut().visuals.button_frame = false;
-                    if ui
-                        .button("Drag and drop or click to select the Siege .exe file...")
-                        .clicked()
+                    if ui.button(string).clicked()
                         && let Some(path) = rfd::FileDialog::new().pick_folder()
                     {
                         self.set_folder(&path);
@@ -307,23 +327,28 @@ impl ShearsApp {
                 }
             });
 
-            ui.add_enabled_ui(self.folder_state.features_availability.events.0, |ui| {
-                if ui
-                    .checkbox(
-                        &mut self.ui_state.checkbox_events,
-                        format!(
-                            "Event files ({}) [EXPERIMENTAL]",
-                            humansize::format_size(
-                                self.folder_state.features_availability.events.1,
-                                humansize::WINDOWS
-                            )
-                        ),
-                    )
-                    .clicked()
-                {
-                    self.compute_possible_space_freed();
-                }
-            });
+            if self
+                .persistent_settings_storage
+                .enable_experimental_features
+            {
+                ui.add_enabled_ui(self.folder_state.features_availability.events.0, |ui| {
+                    if ui
+                        .checkbox(
+                            &mut self.ui_state.checkbox_events,
+                            format!(
+                                "Event files ({}) [EXPERIMENTAL]",
+                                humansize::format_size(
+                                    self.folder_state.features_availability.events.1,
+                                    humansize::WINDOWS
+                                )
+                            ),
+                        )
+                        .clicked()
+                    {
+                        self.compute_possible_space_freed();
+                    }
+                });
+            }
         });
     }
 
@@ -432,6 +457,36 @@ impl ShearsApp {
             }
         }
 
+        if self.ui_state.get_modal(ShearsModals::Settings as usize) {
+            let modal = egui::Modal::new(egui::Id::new("ModalSettings")).show(ctx, |ui| {
+                ui.set_width(400.0);
+
+                ui.heading("Settings");
+                ui.vertical(|ui| {
+                    ui.checkbox(
+                        &mut self.persistent_settings_storage.use_loose_selection,
+                        "Enable loose selection of the Siege folder",
+                    );
+
+                    ui.checkbox(
+                        &mut self
+                            .persistent_settings_storage
+                            .enable_experimental_features,
+                        "Enable experimental features",
+                    );
+                });
+
+                if ui.button("Close").clicked() {
+                    self.persistent_settings_storage.save_to_file();
+                    ui.close();
+                }
+            });
+
+            if modal.should_close() {
+                *self.ui_state.get_modal_mut(ShearsModals::Settings as usize) = false;
+            }
+        }
+
         let mut any_modal_open = false;
         for modal in ShearsModals::START as usize..=ShearsModals::END as usize {
             any_modal_open &= self.ui_state.get_modal(modal);
@@ -504,8 +559,6 @@ impl ShearsApp {
         });
     }
 
-    // TODO: when persistent settings are added, add an option for the "loose" selection (old behaviour, currently unused)
-    #[expect(dead_code)]
     fn render_drag_and_drop_preview_loose(&mut self, ctx: &egui::Context) {
         // ui
         if !ctx.input(|i| i.raw.hovered_files.is_empty()) {
@@ -577,7 +630,15 @@ impl eframe::App for ShearsApp {
 
         // if any modal is being rendered, disable drag and drop behaviour
         if !self.render_modals(ctx) {
-            self.render_drag_and_drop_preview(ctx);
+            if self.persistent_settings_storage.use_loose_selection {
+                self.render_drag_and_drop_preview_loose(ctx);
+            } else {
+                self.render_drag_and_drop_preview(ctx);
+            }
         }
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.persistent_settings_storage.save_to_file();
     }
 }
