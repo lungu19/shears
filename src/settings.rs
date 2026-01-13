@@ -7,6 +7,7 @@ pub struct PersistentSettingsStorage {
     pub enable_experimental_features: bool,
 }
 
+#[expect(clippy::derivable_impls)]
 impl Default for PersistentSettingsStorage {
     fn default() -> Self {
         Self {
@@ -31,14 +32,14 @@ impl PersistentSettingsStorage {
     pub fn load_or_default() -> Self {
         let path = Self::get_path();
 
-        if let Ok(contents) = std::fs::read_to_string(&path) {
-            if let Ok(loaded) = toml::from_str(&contents) {
-                log::info!(
-                    "Loading settings from disk from the following path: {}",
-                    path.to_string_lossy()
-                );
-                return loaded;
-            }
+        if let Ok(contents) = std::fs::read_to_string(&path)
+            && let Ok(loaded) = toml::from_str(&contents)
+        {
+            log::info!(
+                "Loading settings from disk from the following path: {}",
+                path.to_string_lossy()
+            );
+            return loaded;
         }
 
         log::warn!("Failed loading settings from disk, using defaults...");
@@ -50,12 +51,17 @@ impl PersistentSettingsStorage {
 
         if let Some(parent) = path.parent() {
             log::info!("Creating {}", path.to_string_lossy());
-            let _ = std::fs::create_dir_all(parent);
+
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                log::error!("Failed to create folder: {e}");
+            }
         }
 
         if let Ok(toml_string) = toml::to_string_pretty(&self) {
             log::info!("Saving settings to disk...");
-            let _ = std::fs::write(path, toml_string);
+            if let Err(e) = std::fs::write(path, toml_string) {
+                log::error!("Failed to save settings to disk: {e}");
+            }
         }
     }
 }
