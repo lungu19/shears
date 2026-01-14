@@ -3,14 +3,15 @@ use std::path::PathBuf;
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct PersistentSettingsStorage {
+    pub enable_shears_update_check_on_startup: bool,
     pub use_loose_selection: bool,
     pub enable_experimental_features: bool,
 }
 
-#[expect(clippy::derivable_impls)]
 impl Default for PersistentSettingsStorage {
     fn default() -> Self {
         Self {
+            enable_shears_update_check_on_startup: true,
             use_loose_selection: false,
             enable_experimental_features: false,
         }
@@ -19,7 +20,11 @@ impl Default for PersistentSettingsStorage {
 
 impl PersistentSettingsStorage {
     fn get_path() -> PathBuf {
-        let settings_file_name = "UserSettings.toml";
+        let settings_file_name = if cfg!(debug_assertions) {
+            "UserSettings.debug.toml"
+        } else {
+            "UserSettings.toml"
+        };
 
         if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "shears") {
             proj_dirs.config_dir().join(settings_file_name)

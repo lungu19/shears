@@ -267,3 +267,116 @@ pub fn is_siege_running(sys: &mut sysinfo::System) -> bool {
             .any(|&siege_name| process.name().eq_ignore_ascii_case(siege_name))
     })
 }
+
+#[derive(Debug, PartialEq)]
+enum ShearsVersionStatus {
+    UpToDate,
+    NotUpToDate,
+    Error,
+}
+
+#[cfg_attr(debug_assertions, expect(dead_code))]
+fn get_shears_version_status() -> ShearsVersionStatus {
+    let response = match minreq::get("http://api.github.com/repos/lungu19/shears/releases/latest")
+        .with_header("User-Agent", "shears-update-check")
+        .send()
+    {
+        Ok(res) => res,
+        Err(e) => {
+            log::error!("Network request failed: {e}");
+            return ShearsVersionStatus::Error;
+        }
+    };
+
+    let raw_json = match response.as_str() {
+        Ok(s) => s,
+        Err(e) => {
+            log::error!("Failed to read response body: {e}");
+            return ShearsVersionStatus::Error;
+        }
+    };
+
+    let json = microjson::JSONValue::load(raw_json);
+
+    if let Ok(version_value) = json.get_key_value("tag_name")
+        && let Ok(version_string) = version_value.read_string()
+    {
+        let current_version = env!("CARGO_PKG_VERSION");
+
+        log::info!("current_version: {current_version}");
+        log::info!("version_string: {version_string}");
+
+        if current_version == version_string {
+            log::info!("Shears is up-to-date");
+            return ShearsVersionStatus::UpToDate;
+        } else {
+            log::info!("Shears is not up-to-date");
+            return ShearsVersionStatus::NotUpToDate;
+        }
+    }
+
+    log::error!("Failed to parse JSON or find 'tag_name'");
+    ShearsVersionStatus::Error
+}
+
+#[cfg(not(debug_assertions))]
+pub fn run_shears_version_background_check(invoked_automatically: bool) {
+    std::thread::spawn(move || {
+        let shears_version_status = get_shears_version_status();
+
+        match shears_version_status {
+            ShearsVersionStatus::Error => {
+                if !invoked_automatically {
+                    native_dialog::DialogBuilder::message()
+                        .set_level(native_dialog::MessageLevel::Error)
+                        .set_title("Something went wrong")
+                        .set_text("Failed to check Shears version status. Check log for more information.")
+                        .alert()
+                        .show()
+                        .expect("Failed to show dialog")
+                }
+            }
+            ShearsVersionStatus::UpToDate => {
+                if !invoked_automatically {
+                    native_dialog::DialogBuilder::message()
+                        .set_level(native_dialog::MessageLevel::Info)
+                        .set_title("Shears is up-to-date")
+                        .set_text("You are currently using the newest version of Shears available!")
+                        .alert()
+                        .show()
+                        .expect("Failed to show dialog")
+                }
+            }
+            ShearsVersionStatus::NotUpToDate => {
+                if native_dialog::DialogBuilder::message()
+                    .set_level(native_dialog::MessageLevel::Warning)
+                    .set_title("Shears is not up-to-date")
+                    .set_text("A newer version of Shears is available. Do you want to update now?")
+                    .confirm()
+                    .show()
+                    .expect("Failed to show dialog")
+                {
+                    open::that("https://github.com/lungu19/shears/releases/latest")
+                        .expect("Failed to open link in browser");
+                }
+            }
+        }
+    });
+}
+
+#[cfg(debug_assertions)]
+pub fn run_shears_version_background_check(invoked_automatically: bool) {
+    if invoked_automatically {
+        return;
+    }
+
+    std::thread::spawn(|| {
+        native_dialog::DialogBuilder::message()
+            .set_level(native_dialog::MessageLevel::Info)
+            .set_title("Updated Check")
+            .set_text("Debug Update Check")
+            .alert()
+            .show()
+            .expect("Failed to show dialog");
+    });
+}

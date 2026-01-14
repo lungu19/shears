@@ -1,7 +1,8 @@
 use crate::{
     helpers::{
         delete_events_folder, delete_texture_files, delete_videos_folder,
-        get_shearing_features_availability, is_siege_running, write_streaminginstall,
+        get_shearing_features_availability, is_siege_running, run_shears_version_background_check,
+        write_streaminginstall,
     },
     settings::PersistentSettingsStorage,
     types::{ForgeTextureQualityLevel, ShearsFolderState, ShearsModals, ShearsPage, ShearsUiState},
@@ -29,9 +30,15 @@ impl ShearsApp {
             style.spacing.button_padding = egui::vec2(5., 2.5);
         });
 
+        let settings = PersistentSettingsStorage::load_or_default();
+
+        if settings.enable_shears_update_check_on_startup {
+            run_shears_version_background_check(true);
+        }
+
         Self {
             system_information: sysinfo::System::new(),
-            persistent_settings_storage: PersistentSettingsStorage::load_or_default(),
+            persistent_settings_storage: settings,
             ..Self::default()
         }
     }
@@ -159,6 +166,9 @@ impl ShearsApp {
                 });
 
                 ui.menu_button("Help", |ui| {
+                    if ui.button("Check for updates").clicked() {
+                        run_shears_version_background_check(false);
+                    }
                     if ui.button("About").clicked() {
                         *self.ui_state.get_modal_mut(ShearsModals::About as usize) = true;
                     }
@@ -463,6 +473,13 @@ impl ShearsApp {
 
                 ui.heading("Settings");
                 ui.vertical(|ui| {
+                    ui.checkbox(
+                        &mut self
+                            .persistent_settings_storage
+                            .enable_shears_update_check_on_startup,
+                        "Automatically check for updates on app startup",
+                    );
+
                     ui.checkbox(
                         &mut self.persistent_settings_storage.use_loose_selection,
                         "Enable loose selection of the Siege folder",
