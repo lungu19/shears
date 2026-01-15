@@ -4,5 +4,6 @@ pub use app::ShearsApp;
 
 mod app;
 mod helpers;
+mod scan;
 mod settings;
 mod types;

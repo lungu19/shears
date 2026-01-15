@@ -1,9 +1,73 @@
-use std::cmp::Ordering;
-use std::path::PathBuf;
+use crate::scan::scan_recursive;
+
+#[derive(Debug)]
+pub struct ShearsScanFolderState {
+    pub disks: sysinfo::Disks,
+    pub thread_handle: Option<std::thread::JoinHandle<Vec<std::path::PathBuf>>>,
+    pub stop_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    pub scan_results: Option<Vec<std::path::PathBuf>>,
+    timer_start: std::time::Instant,
+}
+
+impl Default for ShearsScanFolderState {
+    fn default() -> Self {
+        Self {
+            disks: sysinfo::Disks::default(),
+            timer_start: std::time::Instant::now(),
+            thread_handle: None,
+            stop_flag: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            scan_results: None,
+        }
+    }
+}
+
+impl ShearsScanFolderState {
+    pub fn start_scan_thread(&mut self, drive: std::path::PathBuf) {
+        self.stop_flag
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+
+        let flag_clone = self.stop_flag.clone();
+
+        self.restart_timer();
+        self.thread_handle = Some(std::thread::spawn(move || {
+            let mut found_paths = Vec::new();
+            scan_recursive(&drive, &mut found_paths, &flag_clone);
+
+            if flag_clone.load(std::sync::atomic::Ordering::Relaxed) {
+                log::info!("Scan was cancelled early.");
+            }
+
+            found_paths
+        }));
+    }
+
+    fn restart_timer(&mut self) {
+        self.timer_start = std::time::Instant::now();
+    }
+
+    pub fn update_disks(&mut self) {
+        self.disks = sysinfo::Disks::new_with_refreshed_list();
+    }
+
+    pub fn timer_elapsed(&self) -> String {
+        let seconds = self.timer_start.elapsed().as_secs();
+
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+        let secs = seconds % 60;
+
+        if hours > 0 {
+            return format!("{hours:02}:{minutes:02}:{secs:02}");
+        }
+
+        format!("{minutes:02}:{secs:02}")
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct ShearsUiState {
-    pub page: ShearsPage,
+    page: ShearsPage,
+    last_page: ShearsPage,
 
     pub checkbox_textures: [bool; ForgeTextureQualityLevel::COUNT],
     pub checkbox_videos: bool,
@@ -17,7 +81,8 @@ pub struct ShearsUiState {
 impl Default for ShearsUiState {
     fn default() -> Self {
         Self {
-            page: ShearsPage::SelectFolder,
+            page: ShearsPage::MainPage,
+            last_page: ShearsPage::MainPage,
 
             checkbox_textures: [true; ForgeTextureQualityLevel::COUNT],
             checkbox_videos: true,
@@ -30,6 +95,35 @@ impl Default for ShearsUiState {
 }
 
 impl ShearsUiState {
+    pub fn reset_pages(&mut self) {
+        self.page = ShearsPage::MainPage;
+        self.last_page = ShearsPage::MainPage;
+    }
+
+    pub fn change_page(&mut self, new_page: ShearsPage) {
+        let current_page = self.page;
+        self.page = new_page;
+        self.last_page = current_page;
+    }
+
+    pub fn change_page_no_history(&mut self, new_page: ShearsPage) {
+        self.page = new_page;
+        self.last_page = ShearsPage::MainPage;
+    }
+
+    pub fn go_back(&mut self) {
+        self.page = self.last_page;
+        self.last_page = ShearsPage::MainPage;
+    }
+
+    pub fn get_page(&self) -> ShearsPage {
+        self.page
+    }
+
+    pub fn get_last_page(&self) -> ShearsPage {
+        self.last_page
+    }
+
     pub fn get_texture_checkbox(self, quality_level: usize) -> bool {
         *self
             .checkbox_textures
@@ -59,7 +153,7 @@ impl ShearsUiState {
 
 #[derive(Default, Clone, Debug)]
 pub struct ShearsFolderState {
-    pub siege_path: Option<PathBuf>,
+    pub siege_path: Option<std::path::PathBuf>,
     pub features_availability: ShearingFeaturesAvailability,
 }
 
@@ -97,7 +191,7 @@ pub enum ForgeTextureQualityLevel {
 }
 
 impl PartialOrd for ForgeTextureQualityLevel {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.convert_to_i32().cmp(&other.convert_to_i32()))
     }
 }
@@ -149,8 +243,11 @@ impl ForgeTextureQualityLevel {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub enum ShearsPage {
-    SelectFolder = 0,
+    MainPage = 0,
     FolderSelected,
+    DiskScanSelect,
+    DiskScanInProgress,
+    DiskScanComplete,
 }
 
 #[derive(Clone, Copy, Debug)]

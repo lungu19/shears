@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{
     helpers::{
         delete_events_folder, delete_texture_files, delete_videos_folder,
@@ -5,12 +7,16 @@ use crate::{
         write_streaminginstall,
     },
     settings::PersistentSettingsStorage,
-    types::{ForgeTextureQualityLevel, ShearsFolderState, ShearsModals, ShearsPage, ShearsUiState},
+    types::{
+        ForgeTextureQualityLevel, ShearsFolderState, ShearsModals, ShearsPage,
+        ShearsScanFolderState, ShearsUiState,
+    },
 };
 
 #[derive(Default)]
 pub struct ShearsApp {
     folder_state: ShearsFolderState,
+    scan_state: ShearsScanFolderState,
     ui_state: ShearsUiState,
     system_information: sysinfo::System,
     persistent_settings_storage: PersistentSettingsStorage,
@@ -48,6 +54,11 @@ impl ShearsApp {
         self.refresh_feature_availablity();
     }
 
+    pub fn show_scan_drives_page(&mut self) {
+        self.scan_state.update_disks();
+        self.ui_state.change_page(ShearsPage::DiskScanSelect);
+    }
+
     pub fn refresh_feature_availablity(&mut self) {
         let siege_path =
             self.folder_state.siege_path.as_ref().expect(
@@ -55,7 +66,7 @@ impl ShearsApp {
             );
         self.folder_state.features_availability = get_shearing_features_availability(siege_path);
 
-        self.ui_state.page = ShearsPage::FolderSelected;
+        self.ui_state.change_page(ShearsPage::FolderSelected);
 
         // set the feature checkboxes accordingly
         for quality_level in
@@ -175,24 +186,32 @@ impl ShearsApp {
                 });
 
                 #[cfg(debug_assertions)]
-                ui.label(
-                    egui::RichText::new("Debug build")
-                        .small()
-                        .color(ui.visuals().warn_fg_color),
-                )
-                .on_hover_text("compiled with debug assertions enabled.");
+                {
+                    ui.label(
+                        egui::RichText::new("Debug build")
+                            .small()
+                            .color(ui.visuals().warn_fg_color),
+                    )
+                    .on_hover_text("compiled with debug assertions enabled.");
+
+                    ui.label(format!("Page: {:?}", self.ui_state.get_page()));
+                    ui.label(format!("LastPage: {:?}", self.ui_state.get_last_page()));
+                }
             });
         });
     }
 
     fn render_main_content(&mut self, ctx: &egui::Context) {
-        match self.ui_state.page {
-            ShearsPage::SelectFolder => self.render_select_folder_page(ctx),
+        match self.ui_state.get_page() {
+            ShearsPage::MainPage => self.render_main_page(ctx),
             ShearsPage::FolderSelected => self.render_folder_selected_page(ctx),
+            ShearsPage::DiskScanSelect => self.render_disk_scan_select_page(ctx),
+            ShearsPage::DiskScanInProgress => self.render_disk_scan_in_progress_page(ctx),
+            ShearsPage::DiskScanComplete => self.render_disk_scan_complete_page(ctx),
         }
     }
 
-    fn render_select_folder_page(&mut self, ctx: &egui::Context) {
+    fn render_main_page(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(&ctx.style()))
             .show(ctx, |ui| {
@@ -202,23 +221,182 @@ impl ShearsApp {
                     "Drag and drop or click to select the Siege .exe file..."
                 };
 
-                ui.centered_and_justified(|ui| {
-                    ui.style_mut().visuals.button_frame = false;
-                    if ui.button(string).clicked()
-                        && let Some(path) = rfd::FileDialog::new().pick_folder()
-                    {
-                        self.set_folder(&path);
+                let style = ui.style_mut();
+                style.spacing.button_padding = egui::vec2(8.0, 5.0);
+
+                let radius = egui::CornerRadius::same(4); // or egui::CornerRadius::ZERO for sharp corners
+                style.visuals.widgets.noninteractive.corner_radius = radius;
+                style.visuals.widgets.inactive.corner_radius = radius;
+                style.visuals.widgets.hovered.corner_radius = radius;
+                style.visuals.widgets.active.corner_radius = radius;
+                style.visuals.widgets.open.corner_radius = radius;
+
+                let spacing = ui.spacing().item_spacing.y;
+                let total_height = ui.available_height();
+                let top_height = (total_height - spacing) * (2.0 / 3.0);
+
+                if ui
+                    .add_sized(
+                        [ui.available_width(), top_height],
+                        egui::Button::new(string),
+                    )
+                    .clicked()
+                    && let Some(path) = rfd::FileDialog::new().pick_folder()
+                {
+                    self.set_folder(&path);
+                }
+
+                if ui
+                    .add_sized(
+                        ui.available_size(),
+                        egui::Button::new("Click to scan your drive for Siege installations... [EXPERIMENTAL]"),
+                    )
+                    .clicked()
+                {
+                    self.show_scan_drives_page();
+                }
+            });
+    }
+
+    fn render_disk_scan_select_page(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::central_panel(&ctx.style()))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("Back").clicked() {
+                        self.ui_state.go_back();
                     }
                 });
+
+                ui.heading("Select the Drive to scan");
+
+                let mut selected_mount_point: Option<std::path::PathBuf> = None;
+
+                for disk in &self.scan_state.disks {
+                    let name = {
+                        let name = disk.name();
+                        if !name.is_empty() {
+                            name.to_string_lossy().into_owned()
+                        } else {
+                            "Local Disk".to_owned()
+                        }
+                    };
+                    let kind = disk.kind();
+                    let mount_point = disk.mount_point();
+
+                    if ui
+                        .button(format!("{name} ({}) [{kind}]", mount_point.display()))
+                        .clicked()
+                    {
+                        selected_mount_point = Some(mount_point.to_path_buf());
+                    }
+                }
+
+                if let Some(mount_point) = selected_mount_point {
+                    self.scan_state.start_scan_thread(mount_point);
+                    self.ui_state.change_page(ShearsPage::DiskScanInProgress);
+                }
+            });
+    }
+
+    fn render_disk_scan_in_progress_page(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::central_panel(&ctx.style()))
+            .show(ctx, |ui| {
+                let is_finished = self
+                    .scan_state
+                    .thread_handle
+                    .as_ref()
+                    .is_some_and(|h| h.is_finished());
+
+                if is_finished {
+                    let handle = self.scan_state.thread_handle.take().expect(
+                        "render_disk_scan_in_progress_page: Failed to unwrap thread handle",
+                    ); // take handle and leave None
+
+                    // capture thread return value
+                    match handle.join() {
+                        Ok(result) => {
+                            log::info!("Completed disk scan, found {} items", result.len());
+                            self.scan_state.scan_results = Some(result);
+                            self.ui_state.change_page(ShearsPage::DiskScanComplete);
+                        }
+                        Err(e) => log::error!("Thread panicked: {e:?}"),
+                    }
+                }
+
+                // thread is still going on
+                if self.scan_state.thread_handle.is_some() {
+                    ui.heading("Scanning drive for Old Siege instances...");
+                    ui.label(format!("Time elapsed: {}", self.scan_state.timer_elapsed()));
+                    ctx.request_repaint();
+                }
+
+                if ui.button("Stop scan").clicked() {
+                    self.scan_state
+                        .stop_flag
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+
+                    if let Some(handle) = self.scan_state.thread_handle.take() {
+                        if let Err(e) = handle.join() {
+                            log::error!("Scan thread panicked: {e:?}");
+                        } else {
+                            log::info!("Scan thread stopped successfully");
+                        }
+
+                        self.ui_state.reset_pages();
+                        self.show_scan_drives_page();
+                    }
+                }
+            });
+    }
+
+    fn render_disk_scan_complete_page(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::central_panel(&ctx.style()))
+            .show(ctx, |ui| {
+                ui.heading("Scan Complete");
+
+                ui.horizontal(|ui| {
+                    if ui.button("Back to Main Menu").clicked() {
+                        self.ui_state.change_page_no_history(ShearsPage::MainPage);
+                    }
+
+                    if ui.button("Start new scan").clicked() {
+                        self.ui_state
+                            .change_page_no_history(ShearsPage::DiskScanSelect);
+                    }
+                });
+
+                let mut selected_folder: Option<PathBuf> = None;
+                if let Some(folders) = &self.scan_state.scan_results {
+                    for folder in folders {
+                        if ui.button(folder.to_string_lossy()).clicked() {
+                            selected_folder = Some(folder.clone());
+                        }
+                    }
+                } else {
+                    // somehow here without the thread result, fallback to main page
+                    log::warn!("going back");
+                    self.ui_state.reset_pages();
+                }
+
+                if let Some(folder) = &selected_folder {
+                    self.set_folder(folder);
+                }
             });
     }
 
     fn render_folder_selected_page_header(&mut self, ui: &mut egui::Ui) -> bool {
         ui.horizontal(|ui| {
-            if ui.button("Select another folder").clicked()
-                && let Some(path) = rfd::FileDialog::new().pick_folder()
-            {
-                self.set_folder(&path);
+            let string = if self.ui_state.get_last_page() == ShearsPage::DiskScanComplete {
+                "Select another version from scan"
+            } else {
+                "Back"
+            };
+
+            if ui.button(string).clicked() {
+                self.ui_state.go_back();
             }
         });
 

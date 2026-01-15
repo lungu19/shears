@@ -1,6 +1,6 @@
 [package]
 name = "shears"
-version = "0.1.6"
+version = "0.2.0"
 authors = ["lungu19"]
 edition = "2024"
 rust-version = "1.94"
@@ -18,7 +18,7 @@ log = "0.4"
 microjson = "0.1"  # parse json response
 open = "5.3"  # open link in browser
 rfd = "0.17"  # folder picker
-sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+sysinfo = { version = "0.37", default-features = false, features = ["system", "disk"] }
 native-dialog = "0.9"
 minreq = { version = "2.14", features = ["https"]}  # send HTTPS requests to Github API to get latest release version
 serde = { version = "1.0", features = ["derive"] }
