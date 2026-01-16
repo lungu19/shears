@@ -30,8 +30,14 @@ fn shears_main() -> eframe::Result {
         ..Default::default()
     };
 
+    let window_title = if cfg!(debug_assertions) {
+        format!("Shears {} - Debug Build", env!("CARGO_PKG_VERSION"))
+    } else {
+        format!("Shears {}", env!("CARGO_PKG_VERSION"))
+    };
+
     eframe::run_native(
-        format!("Shears {}", env!("CARGO_PKG_VERSION")).as_str(),
+        window_title.as_str(),
         native_options,
         Box::new(|cc| Ok(Box::new(shears::ShearsApp::new(cc)))),
     )

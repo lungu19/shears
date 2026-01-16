@@ -190,12 +190,23 @@ impl ShearsApp {
                     ui.label(
                         egui::RichText::new("Debug build")
                             .small()
-                            .color(ui.visuals().warn_fg_color),
+                            .color(ui.visuals().error_fg_color),
                     )
                     .on_hover_text("compiled with debug assertions enabled.");
 
-                    ui.label(format!("Page: {:?}", self.ui_state.get_page()));
-                    ui.label(format!("LastPage: {:?}", self.ui_state.get_last_page()));
+                    ui.label(
+                        egui::RichText::new(format!("Page: {:?}", self.ui_state.get_page()))
+                            .small()
+                            .color(ui.visuals().warn_fg_color),
+                    );
+                    ui.label(
+                        egui::RichText::new(format!(
+                            "LastPage: {:?}",
+                            self.ui_state.get_last_page()
+                        ))
+                        .small()
+                        .color(ui.visuals().warn_fg_color),
+                    );
                 }
             });
         });
@@ -249,7 +260,7 @@ impl ShearsApp {
                 if ui
                     .add_sized(
                         ui.available_size(),
-                        egui::Button::new("Click to scan your drive for Siege installations... [EXPERIMENTAL]"),
+                        egui::Button::new("Click to scan your drive for Siege installations..."),
                     )
                     .clicked()
                 {
@@ -363,8 +374,7 @@ impl ShearsApp {
                     }
 
                     if ui.button("Start new scan").clicked() {
-                        self.ui_state
-                            .change_page_no_history(ShearsPage::DiskScanSelect);
+                        self.show_scan_drives_page();
                     }
                 });
 
