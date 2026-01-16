@@ -50,9 +50,11 @@ If you prefer to build the application yourself, follow these steps.
 The executable will be located in the `target/release/` folder.
 
 ## Contributing
-
 Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/lungu19/shears/issues).
 
 ## License
-
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/lungu19/shears/LICENSE) file for details.
+
+## Disclaimer
+This software is an independent project and is not affiliated with, endorsed by, or sponsored by Ubisoft Entertainment.
+*Rainbow Six Siege* and all related names, logos, and assets are trademarks or registered trademarks of Ubisoft Entertainment in the U.S. and/or other countries. All rights belong to their respective owners.
