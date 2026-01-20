@@ -235,7 +235,7 @@ impl ShearsApp {
                 let style = ui.style_mut();
                 style.spacing.button_padding = egui::vec2(8.0, 5.0);
 
-                let radius = egui::CornerRadius::same(4); // or egui::CornerRadius::ZERO for sharp corners
+                let radius = egui::CornerRadius::same(4);
                 style.visuals.widgets.noninteractive.corner_radius = radius;
                 style.visuals.widgets.inactive.corner_radius = radius;
                 style.visuals.widgets.hovered.corner_radius = radius;
@@ -330,6 +330,8 @@ impl ShearsApp {
                         Ok(result) => {
                             log::info!("Completed disk scan, found {} items", result.len());
                             self.scan_state.scan_results = Some(result);
+                            self.scan_state.update_disks();
+                            self.scan_state.update_scan_length();
                             self.ui_state.change_page(ShearsPage::DiskScanComplete);
                         }
                         Err(e) => log::error!("Thread panicked: {e:?}"),
@@ -339,7 +341,10 @@ impl ShearsApp {
                 // thread is still going on
                 if self.scan_state.thread_handle.is_some() {
                     ui.heading("Scanning drive for Old Siege instances...");
-                    ui.label(format!("Time elapsed: {}", self.scan_state.timer_elapsed()));
+                    ui.label(format!(
+                        "Time elapsed: {}",
+                        self.scan_state.ongoing_timer_elapsed()
+                    ));
                     ctx.request_repaint();
                 }
 
@@ -378,8 +383,15 @@ impl ShearsApp {
                     }
                 });
 
+                ui.label(format!(
+                    "Scan duration: {}",
+                    self.scan_state.get_scan_length()
+                ));
+
                 let mut selected_folder: Option<PathBuf> = None;
                 if let Some(folders) = &self.scan_state.scan_results {
+                    ui.label(format!("{} results", folders.len()));
+
                     for folder in folders {
                         if ui.button(folder.to_string_lossy()).clicked() {
                             selected_folder = Some(folder.clone());
@@ -632,7 +644,7 @@ impl ShearsApp {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
                         ui.label("Made by ");
-                        ui.hyperlink_to("Lungu", "https://github.com/lungu19");
+                        ui.hyperlink_to("lungu19", "https://github.com/lungu19");
                     });
 
                     ui.hyperlink_to("Source code", "https://github.com/lungu19/shears");

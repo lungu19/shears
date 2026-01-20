@@ -7,6 +7,7 @@ pub struct ShearsScanFolderState {
     pub stop_flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
     pub scan_results: Option<Vec<std::path::PathBuf>>,
     timer_start: std::time::Instant,
+    scan_length: Option<u64>, // time taken by the last scan, None by default
 }
 
 impl Default for ShearsScanFolderState {
@@ -17,6 +18,7 @@ impl Default for ShearsScanFolderState {
             thread_handle: None,
             stop_flag: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             scan_results: None,
+            scan_length: None,
         }
     }
 }
@@ -49,9 +51,12 @@ impl ShearsScanFolderState {
         self.disks = sysinfo::Disks::new_with_refreshed_list();
     }
 
-    pub fn timer_elapsed(&self) -> String {
-        let seconds = self.timer_start.elapsed().as_secs();
+    pub fn update_scan_length(&mut self) {
+        let elapsed = self.timer_start.elapsed().as_secs();
+        self.scan_length = Some(elapsed);
+    }
 
+    fn fmt_time(seconds: u64) -> String {
         let hours = seconds / 3600;
         let minutes = (seconds % 3600) / 60;
         let secs = seconds % 60;
@@ -61,6 +66,19 @@ impl ShearsScanFolderState {
         }
 
         format!("{minutes:02}:{secs:02}")
+    }
+
+    pub fn get_scan_length(&self) -> String {
+        if let Some(duration) = self.scan_length {
+            return Self::fmt_time(duration);
+        }
+
+        "Unavailable".to_owned()
+    }
+
+    pub fn ongoing_timer_elapsed(&self) -> String {
+        let seconds = self.timer_start.elapsed().as_secs();
+        Self::fmt_time(seconds)
     }
 }
 
